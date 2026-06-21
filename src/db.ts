@@ -8,8 +8,6 @@ class SeanceDB extends Dexie {
   constructor() {
     super("la-seance");
     this.version(1).stores({
-      // date is the natural key for a day's pick; seedId lets us avoid repeats
-      // and dedupe; the flags drive the timelines.
       logs: "++id, date, seedId, watched, bookmarked, rating, createdAt, updatedAt",
       settings: "++id",
     });
@@ -41,19 +39,22 @@ export async function setSettings(patch: Partial<Settings>): Promise<void> {
 }
 
 /* ------------------------------------------------------------------ *
- * Deconstruction cache — keyed by (seedId | film+scene, lang).
- *
- * The cache lives in the same logs table for daily picks, but the
- * "Demander" path may regenerate; for the daily path we look up by
- * (date) and only generate once. We ALSO keep a lightweight cache keyed
- * by (cacheKey,lang) so re-opening the same seed in the other language
- * doesn't refetch needlessly. Stored on the log itself via a small map.
+ * Logs — each holds per-language deconstructions of one scene.
+ * Cache key is (seedId | the log row, lang): see deconFor / cacheDecon.
  * ------------------------------------------------------------------ */
 
-/** Find the log for the daily pick of a given date. */
+/** Read a log's deconstruction in `lang`, or undefined if not yet fetched. */
+export function deconFor(log: SeanceLog | null | undefined, lang: Lang): Deconstruction | undefined {
+  // Fresh/empty store paths can hand us undefined; coalesce defensively.
+  return log?.decons?.[lang] ?? undefined;
+}
+
+/** Any deconstruction we have for this log, regardless of language (for previews). */
+export function anyDecon(log: SeanceLog): Deconstruction | undefined {
+  return log.decons.fr ?? log.decons.en ?? undefined;
+}
+
 export async function getDayLog(date: string): Promise<SeanceLog | undefined> {
-  // .get-style read on a fresh/empty store returns undefined — callers
-  // coalesce with ?? null at the React boundary.
   return db.logs.where("date").equals(date).first();
 }
 
@@ -63,12 +64,17 @@ export async function upsertDayLog(
   decon: Deconstruction,
 ): Promise<SeanceLog> {
   const existing = await getDayLog(date);
-  if (existing) return existing;
+  if (existing) {
+    // keep its identity, just ensure this language is cached
+    const decons = { ...existing.decons, [decon.lang]: decon };
+    await db.logs.update(existing.id!, { decons, updatedAt: Date.now() });
+    return { ...existing, decons };
+  }
   const now = Date.now();
   const fresh: SeanceLog = {
     date,
     seedId,
-    decon,
+    decons: { [decon.lang]: decon },
     watched: false,
     rating: 0,
     note: "",
@@ -80,14 +86,13 @@ export async function upsertDayLog(
   return { ...fresh, id };
 }
 
-/** Store an on-demand ("Demander") deconstruction as its own row. */
 export async function addDemandLog(decon: Deconstruction): Promise<SeanceLog> {
   const now = Date.now();
   const date = `ask-${now}`;
   const fresh: SeanceLog = {
     date,
     seedId: null,
-    decon,
+    decons: { [decon.lang]: decon },
     watched: false,
     rating: 0,
     note: "",
@@ -97,6 +102,15 @@ export async function addDemandLog(decon: Deconstruction): Promise<SeanceLog> {
   };
   const id = await db.logs.add(fresh);
   return { ...fresh, id };
+}
+
+/** Cache a freshly-fetched language variant onto an existing log. */
+export async function cacheDecon(id: number, decon: Deconstruction): Promise<SeanceLog | undefined> {
+  const log = await db.logs.get(id);
+  if (!log) return undefined;
+  const decons = { ...log.decons, [decon.lang]: decon };
+  await db.logs.update(id, { decons, updatedAt: Date.now() });
+  return { ...log, decons };
 }
 
 export async function updateLog(id: number, patch: Partial<SeanceLog>): Promise<void> {
@@ -108,12 +122,14 @@ export async function deleteLog(id: number): Promise<void> {
 }
 
 /** Recent scenes (film — scene) to feed the engine's avoid list. */
-export async function recentScenes(lang: Lang, limit = 40): Promise<string[]> {
+export async function recentScenes(limit = 40): Promise<string[]> {
   const rows = await db.logs.orderBy("createdAt").reverse().limit(limit).toArray();
-  return rows.map((r) => {
-    const scene = lang === "en" ? r.decon.scene.en : r.decon.scene.fr;
-    return `${r.decon.film} — ${scene}`;
-  });
+  return rows
+    .map((r) => {
+      const d = anyDecon(r);
+      return d ? `${d.film} — ${d.scene}` : "";
+    })
+    .filter(Boolean);
 }
 
 /** Seed ids already seen, so the daily picker can skip repeats over time. */

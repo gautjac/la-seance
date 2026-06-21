@@ -1,18 +1,21 @@
-import type { Lang, SeanceLog } from "../types";
-import { pick, t } from "../lib/i18n";
+import type { Deconstruction, Lang, SeanceLog } from "../types";
+import { t } from "../lib/i18n";
 import ShotDiagram from "./ShotDiagram";
 
-/* The full deconstruction "sheet" for one scene — the découpage. */
+/* The full deconstruction "sheet" for one scene — the découpage.
+ * `decon` is already in the active language (monolingual). */
 export default function Decoupage({
+  decon,
   log,
   lang,
   onUpdate,
 }: {
+  decon: Deconstruction;
   log: SeanceLog;
   lang: Lang;
   onUpdate: (patch: Partial<SeanceLog>) => void;
 }) {
-  const d = log.decon;
+  const d = decon;
   const wikiHref = d.mediaQuery
     ? `https://en.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(d.mediaQuery)}`
     : null;
@@ -28,7 +31,7 @@ export default function Decoupage({
             <p className="label text-rouge">
               {log.seedId ? t("sceneDuJour", lang) : t("onDemand", lang)}
             </p>
-            <p className="font-mono text-[0.7rem] uppercase tracking-[0.18em] text-ink/45">
+            <p className="font-mono text-[0.7rem] uppercase tracking-[0.18em] text-ink/45 tnum">
               {d.year || ""}
             </p>
           </div>
@@ -49,18 +52,20 @@ export default function Decoupage({
           <div className="mt-5 rule" />
 
           <p className="mt-5 font-display text-[1.4rem] font-medium italic leading-snug text-rouge sm:text-[1.7rem]">
-            « {pick(d.scene, lang)} »
+            « {d.scene} »
           </p>
-          {pick(d.logline, lang) && (
+          {d.logline && (
             <p className="mt-3 max-w-prose font-text text-[1.05rem] leading-relaxed text-ink/75">
-              {pick(d.logline, lang)}
+              {d.logline}
             </p>
           )}
 
           {/* where to watch */}
           <div className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-2 font-mono text-[0.72rem] uppercase tracking-[0.14em]">
             <span className="rounded-sm bg-ink px-2 py-1 text-papier">{t("whereToWatch", lang)}</span>
-            <span className="text-ink/70">{pick(d.whereToWatch, lang)}</span>
+            <span className="text-ink/70 normal-case tracking-normal font-text text-[0.95rem]">
+              {d.whereToWatch}
+            </span>
             {wikiHref && (
               <a
                 href={wikiHref}
@@ -77,7 +82,7 @@ export default function Decoupage({
 
       {/* The setup */}
       <Section label={t("setup", lang)} index="00">
-        <p className="font-text text-[1.08rem] leading-relaxed text-ink/85">{pick(d.setup, lang)}</p>
+        <p className="font-text text-[1.08rem] leading-relaxed text-ink/85">{d.setup}</p>
       </Section>
 
       {/* The breakdown — shot by shot */}
@@ -85,7 +90,6 @@ export default function Decoupage({
         <ol className="space-y-7">
           {d.beats.map((b, i) => (
             <li key={i} className="relative grid gap-4 sm:grid-cols-[auto,1fr]">
-              {/* beat number + diagram column */}
               <div className="flex flex-row items-start gap-3 sm:w-[200px] sm:flex-col">
                 <div className="flex items-center gap-2">
                   <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-ink font-mono text-[0.72rem] font-bold text-papier">
@@ -103,13 +107,10 @@ export default function Decoupage({
                   </div>
                 )}
               </div>
-              {/* the read */}
               <div className="border-l-2 border-ink/12 pl-4">
-                <p className="font-text text-[1.04rem] leading-relaxed text-ink/90">
-                  {pick(b.shot, lang)}
-                </p>
+                <p className="font-text text-[1.04rem] leading-relaxed text-ink/90">{b.shot}</p>
                 <p className="mt-2 font-text text-[0.98rem] italic leading-relaxed text-ink/60">
-                  → {pick(b.read, lang)}
+                  → {b.read}
                 </p>
               </div>
             </li>
@@ -120,27 +121,23 @@ export default function Decoupage({
       {/* Sound + Performance, two columns */}
       <div className="mt-9 grid gap-7 md:grid-cols-2">
         <CardSection label={t("sound", lang)} accent="laiton">
-          <p className="font-text text-[1.02rem] leading-relaxed text-ink/85">{pick(d.sound, lang)}</p>
+          <p className="font-text text-[1.02rem] leading-relaxed text-ink/85">{d.sound}</p>
         </CardSection>
         <CardSection label={t("performance", lang)} accent="sauge">
-          <p className="font-text text-[1.02rem] leading-relaxed text-ink/85">
-            {pick(d.performance, lang)}
-          </p>
+          <p className="font-text text-[1.02rem] leading-relaxed text-ink/85">{d.performance}</p>
         </CardSection>
       </div>
 
       {/* Pourquoi — the heart, with drop cap */}
       <Section label={t("pourquoi", lang)} index="★">
-        <p className="lede font-text text-[1.12rem] leading-relaxed text-ink/90">
-          {pick(d.pourquoi, lang)}
-        </p>
+        <p className="lede font-text text-[1.12rem] leading-relaxed text-ink/90">{d.pourquoi}</p>
       </Section>
 
       {/* Le geste — chalk on slate */}
       <div className="mt-9 overflow-hidden rounded-lg slate px-6 py-7 shadow-sheet sm:px-9">
         <p className="label text-laiton-soft">{t("geste", lang)}</p>
         <p className="mt-3 font-display text-[1.5rem] font-semibold leading-snug text-craie sm:text-[1.95rem]">
-          {pick(d.geste, lang)}
+          {d.geste}
         </p>
       </div>
 
@@ -153,7 +150,7 @@ export default function Decoupage({
                 <span className="mt-1 font-mono text-rouge">·</span>
                 <p className="font-text text-[1.02rem] leading-relaxed text-ink/85">
                   <span className="font-display font-semibold text-ink">{g.film}</span>
-                  <span className="text-ink/55"> — {pick(g.note, lang)}</span>
+                  <span className="text-ink/55"> — {g.note}</span>
                 </p>
               </li>
             ))}
@@ -166,7 +163,7 @@ export default function Decoupage({
         {t("diagramNote", lang)}
       </p>
 
-      {/* The viewer's marginalia: watched / rating / note / bookmark */}
+      {/* The viewer's marginalia */}
       <Marginalia log={log} lang={lang} onUpdate={onUpdate} />
     </article>
   );
@@ -230,9 +227,7 @@ function Marginalia({
           type="button"
           onClick={() => onUpdate({ watched: !log.watched })}
           className={`rounded-full px-4 py-2 font-mono text-[0.72rem] uppercase tracking-[0.16em] transition-colors ${
-            log.watched
-              ? "bg-ink text-papier"
-              : "border border-ink/30 text-ink/70 hover:border-ink"
+            log.watched ? "bg-ink text-papier" : "border border-ink/30 text-ink/70 hover:border-ink"
           }`}
           aria-pressed={log.watched}
         >
@@ -252,7 +247,6 @@ function Marginalia({
           {log.bookmarked ? `♦ ${t("bookmarked", lang)}` : `♢ ${t("bookmark", lang)}`}
         </button>
 
-        {/* rating */}
         <div className="ml-auto flex items-center gap-1.5">
           <span className="mr-1 font-mono text-[0.66rem] uppercase tracking-[0.18em] text-ink/45">
             {t("rating", lang)}

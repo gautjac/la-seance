@@ -4,7 +4,10 @@ import type { Lang, SeanceLog, SceneSeed, Settings } from "./types";
 import { fetchSeance } from "./api";
 import {
   addDemandLog,
+  anyDecon,
+  cacheDecon,
   db,
+  deconFor,
   deleteLog,
   getDayLog,
   getSettings,
@@ -26,12 +29,7 @@ function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-/**
- * The daily pick is date-deterministic, but we nudge past the seed for the day
- * if it's already been seen, walking forward through the list so the daily
- * scene avoids repeats while staying stable for the date. Returns the seed AND
- * whether everything has been seen (then we allow a repeat).
- */
+/** Date-deterministic daily pick, nudged forward past already-seen seeds. */
 function pickSeedForDate(date: string, seen: Set<string>): SceneSeed {
   const base = seedForDate(date);
   if (!seen.has(base.id) || seen.size >= SEEDS.length) return base;
@@ -70,22 +68,15 @@ export default function App() {
   useEffect(() => {
     getSettings().then((s) => {
       const resolved = migrateLang(s.lang);
-      // streak: increment if last seen was yesterday, reset if older, keep if today
       const today = todayStr();
       let streakCount = s.streakCount ?? 0;
       if (s.lastSeenDate !== today) {
-        const last = s.lastSeenDate ? new Date(s.lastSeenDate + "T00:00:00") : null;
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
         const yStr = yesterday.toISOString().slice(0, 10);
-        streakCount = last && s.lastSeenDate === yStr ? streakCount + 1 : 1;
+        streakCount = s.lastSeenDate === yStr ? streakCount + 1 : 1;
       }
-      const next: Settings = {
-        ...s,
-        lang: resolved,
-        streakCount,
-        lastSeenDate: today,
-      };
+      const next: Settings = { ...s, lang: resolved, streakCount, lastSeenDate: today };
       setSettings(next);
       setLangState(resolved);
       persistLang(resolved);
@@ -102,18 +93,36 @@ export default function App() {
       if (!force) {
         const existing = await getDayLog(date);
         if (existing) {
-          setDayLog(existing);
-          return;
+          // have the row; if the active language isn't cached yet, fetch it
+          if (deconFor(existing, lang)) {
+            setDayLog(existing);
+            return;
+          }
         }
       }
       setLoading(true);
       try {
-        const seen = await seenSeedIds();
-        // on a forced reroll, also avoid today's already-stored seed
         const existing = await getDayLog(date);
+        if (!force && existing) {
+          // fetch the missing language variant for the existing daily scene
+          const base = anyDecon(existing)!;
+          const avoid = await recentScenes();
+          const decon = await fetchSeance({
+            film: base.film,
+            director: base.director,
+            year: base.year,
+            scene: base.scene,
+            lang,
+            avoid,
+          });
+          const updated = (await cacheDecon(existing.id!, decon)) ?? existing;
+          setDayLog(updated);
+          return;
+        }
+        const seen = await seenSeedIds();
         if (force && existing?.seedId) seen.add(existing.seedId);
         const seed = pickSeedForDate(date, seen);
-        const avoid = await recentScenes(lang);
+        const avoid = await recentScenes();
         const decon = await fetchSeance({
           film: seed.film,
           director: seed.director,
@@ -136,11 +145,13 @@ export default function App() {
 
   // Fetch today's scene once settings are ready and onboarding is done.
   useEffect(() => {
-    if (settings?.onboarded && !dayLog && !loading) {
-      void loadDay(false);
+    if (settings?.onboarded && !loading) {
+      // (re)load when onboarded OR when the language changes and today's
+      // scene lacks that language variant
+      if (!dayLog || !deconFor(dayLog, lang)) void loadDay(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settings?.onboarded]);
+  }, [settings?.onboarded, lang]);
 
   const allLogs = useLiveQuery(
     () => db.logs.orderBy("createdAt").reverse().toArray(),
@@ -168,13 +179,49 @@ export default function App() {
     if (askResult?.id === log.id) setAskResult(merged);
   };
 
+  // When opening a past/saved log whose active-language variant is missing,
+  // fetch + cache it so it reads in the chosen language.
+  const ensureLangFor = useCallback(
+    async (log: SeanceLog, setter: (l: SeanceLog) => void) => {
+      if (deconFor(log, lang) || log.id == null) return;
+      const base = anyDecon(log);
+      if (!base) return;
+      setLoading(true);
+      try {
+        const avoid = await recentScenes();
+        const decon = await fetchSeance({
+          film: base.film,
+          director: base.director,
+          year: base.year,
+          scene: base.scene,
+          lang,
+          avoid,
+        });
+        const updated = await cacheDecon(log.id, decon);
+        if (updated) setter(updated);
+      } catch {
+        /* leave the other-language variant showing */
+      } finally {
+        setLoading(false);
+      }
+    },
+    [lang],
+  );
+
+  // refetch language variant for the opened log when language changes
+  useEffect(() => {
+    if (opened && !deconFor(opened, lang)) void ensureLangFor(opened, setOpened);
+    if (askResult && !deconFor(askResult, lang)) void ensureLangFor(askResult, setAskResult);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lang]);
+
   const runAsk = async () => {
     if (!settings || askText.trim().length < 2) return;
     setAskError(null);
     setAskLoading(true);
     setAskResult(null);
     try {
-      const avoid = await recentScenes(lang);
+      const avoid = await recentScenes();
       const decon = await fetchSeance({ ask: askText.trim(), lang, avoid });
       const saved = await addDemandLog(decon);
       setAskResult(saved);
@@ -189,6 +236,7 @@ export default function App() {
     setOpened(log);
     setTab("today");
     window.scrollTo({ top: 0, behavior: "smooth" });
+    if (!deconFor(log, lang)) void ensureLangFor(log, setOpened);
   };
 
   const removeLog = async (log: SeanceLog) => {
@@ -224,6 +272,7 @@ export default function App() {
   ];
 
   const shown = opened ?? dayLog;
+  const shownDecon = shown ? deconFor(shown, lang) ?? anyDecon(shown) : undefined;
 
   return (
     <div className="mx-auto min-h-screen max-w-5xl px-5 pb-24 pt-7 sm:px-8">
@@ -308,13 +357,18 @@ export default function App() {
                 ← {t("backToToday", lang)}
               </button>
             )}
-            {loading && !shown && <Spinner lang={lang} />}
-            {error && !shown && (
+            {loading && !shownDecon && <Spinner lang={lang} />}
+            {error && !shownDecon && (
               <ErrorBox lang={lang} message={error} onRetry={() => loadDay(true)} />
             )}
-            {shown && (
+            {shown && shownDecon && (
               <>
-                <Decoupage log={shown} lang={lang} onUpdate={(p) => patchLog(shown, p)} />
+                <Decoupage
+                  decon={shownDecon}
+                  log={shown}
+                  lang={lang}
+                  onUpdate={(p) => patchLog(shown, p)}
+                />
                 {!opened && (
                   <div className="mt-10 flex justify-center">
                     <button
@@ -384,15 +438,19 @@ export default function App() {
                 <ErrorBox lang={lang} message={askError} onRetry={runAsk} />
               </div>
             )}
-            {askResult && !askLoading && (
-              <div className="mt-9 border-t border-ink/15 pt-9">
-                <Decoupage
-                  log={askResult}
-                  lang={lang}
-                  onUpdate={(p) => patchLog(askResult, p)}
-                />
-              </div>
-            )}
+            {askResult && !askLoading && (() => {
+              const d = deconFor(askResult, lang) ?? anyDecon(askResult);
+              return d ? (
+                <div className="mt-9 border-t border-ink/15 pt-9">
+                  <Decoupage
+                    decon={d}
+                    log={askResult}
+                    lang={lang}
+                    onUpdate={(p) => patchLog(askResult, p)}
+                  />
+                </div>
+              ) : null;
+            })()}
           </Section>
         )}
       </main>

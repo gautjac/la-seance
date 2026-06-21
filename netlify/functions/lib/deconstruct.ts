@@ -20,10 +20,15 @@ export interface SeanceRequest {
   avoid?: string[];
 }
 
-interface Bilingual {
-  fr: string;
-  en: string;
-}
+/* ------------------------------------------------------------------ *
+ * The deconstruction is generated in ONE language per call (the
+ * requested `lang`). This keeps each Opus call well within Netlify's
+ * function window, and the client caches by (sceneId, lang) — switching
+ * language refetches that scene in the new language. The payload is
+ * therefore monolingual; `lang` rides along so the client knows which
+ * language this object holds.
+ * ------------------------------------------------------------------ */
+
 interface ShotDiagram {
   aspect?: "scope" | "wide" | "academy" | "tv";
   size?: string;
@@ -36,28 +41,29 @@ interface ShotDiagram {
 }
 interface Beat {
   timecode: string;
-  shot: Bilingual;
-  read: Bilingual;
+  shot: string;
+  read: string;
   diagram?: ShotDiagram;
 }
 interface Thread {
   film: string;
-  note: Bilingual;
+  note: string;
 }
 export interface Deconstruction {
+  lang: Lang;
   film: string;
   director: string;
   year: number;
-  scene: Bilingual;
-  whereToWatch: Bilingual;
+  scene: string;
+  whereToWatch: string;
   mediaQuery?: string;
-  logline: Bilingual;
-  setup: Bilingual;
+  logline: string;
+  setup: string;
   beats: Beat[];
-  sound: Bilingual;
-  performance: Bilingual;
-  pourquoi: Bilingual;
-  geste: Bilingual;
+  sound: string;
+  performance: string;
+  pourquoi: string;
+  geste: string;
   goFurther: Thread[];
 }
 
@@ -70,27 +76,27 @@ const SYSTEM_BASE = `You are the resident analyst of «La Séance», a daily del
 
 THE NON-NEGOTIABLE HONESTY RULE:
 - You may ONLY analyse REAL, well-known, verifiable film scenes — correctly attributed to the real film, the real director, and the real year. Use the canonical/consecrated film title.
-- NEVER invent a film, a scene, a director, a shot, or a line of dialogue. If you are not confident a film/scene/attribution is real and accurate, choose a different, more canonical scene you ARE sure of, or decline by reporting the closest real scene you can stand behind.
-- Quote any line of dialogue EXACTLY as written, or describe it rather than misquote. Do not fabricate specific timecodes to the second — give honest, useful approximations ("≈ 30 min in", "the climax") and frame-internal relative timings for beats ("0:00–0:14" within the scene) clearly as approximate.
+- NEVER invent a film, a scene, a director, a shot, or a line of dialogue. If you are not confident a film/scene/attribution is real and accurate, choose a different, more canonical scene you ARE sure of.
+- Quote any line of dialogue EXACTLY as written, or describe it rather than misquote. Do not fabricate timecodes to the second — give honest, useful approximations ("≈ 30 min in", "the climax") and relative beat timings clearly as approximate ("0:00–0:14" within the scene).
 - You are NOT showing video or images and you NEVER claim to. There is no embedded clip, no frame, no still. You DESCRIBE the shots in words and point the viewer to where they can watch.
 - Prefer the canonical and the famous — it must be checkable.
 
 WHAT A GREAT DECONSTRUCTION CONTAINS:
 - «logline»: one evocative line that frames why this scene matters. ≤ 18 words.
-- «setup»: what the scene must accomplish and where it sits in the film — the dramatic stakes going in. 2–3 sentences. (No spoilers beyond the scene itself unless essential.)
+- «setup»: what the scene must accomplish and where it sits in the film — the stakes going in. 2–3 sentences.
 - «beats»: the SHOT-BY-SHOT spine. 4–7 beats, in order. Each beat = one shot or one continuous movement:
-    • «timecode»: a short, honest relative marker within the scene (e.g. "0:00–0:10", "@1:32", "the cut on the scream"). Approximate is fine and expected.
+    • «timecode»: a short, honest relative marker within the scene (e.g. "0:00–0:10", "@1:32", "the cut on the scream"). Approximate is fine.
     • «shot»: what we SEE — framing (size: wide/medium/close/etc.), blocking/staging, lens feel, and any camera move. Concrete and visual.
     • «read»: why THIS beat works — the decision and its effect on the viewer. One or two sentences. This is the teaching.
-    • «diagram» (optional but encouraged on the 2–4 most important beats): a tiny schematic of the framing. Provide it as structured data the app will draw as a simple blocking sketch:
-        - aspect: the frame ratio if known ("scope" ≈ 2.39, "wide" ≈ 1.85, "academy" ≈ 1.37, "tv" ≈ 1.33).
-        - size: a short shot-size label, e.g. "CU"/"GP", "MS"/"PM", "WS"/"PE".
-        - subjects: 1–3 blocks placed in the frame with normalized coords (x,y,w,h each 0..1, where x,y is the top-left of the block). Mark the dramatic focus with accent:true. Give a 1-char label if useful.
+    • «diagram» (encouraged on the 2–4 most important beats): a tiny schematic of the framing as structured data the app draws as a blocking sketch:
+        - aspect: frame ratio if known ("scope" ≈ 2.39, "wide" ≈ 1.85, "academy" ≈ 1.37, "tv" ≈ 1.33).
+        - size: short shot-size label, e.g. "CU"/"GP", "MS"/"PM", "WS"/"PE".
+        - subjects: 1–3 blocks placed in the frame with normalized coords (x,y,w,h each 0..1, x,y is the block's top-left). Mark the dramatic focus accent:true. Optional 1-char label.
         - move: if the camera moves, one arrow — kind (pan/tilt/dolly-in/dolly-out/track/crane/zoom/handheld) and from/to points (0..1).
-      Keep diagrams SCHEMATIC and honest to the real staging — they are blocking sketches, not frames.
-- «sound»: what the SOUND is doing across the scene — score, diegetic sound, silence, the mix, where sound leads or contradicts the image. 2–4 sentences. Always include this; sound is half the scene.
-- «performance»: the acting turn that matters — the specific beat in a face, a body, a voice that carries the scene. 1–3 sentences. (If the scene is not performance-led, say briefly what the performances are doing in service of it.)
-- «pourquoi»: the heart. ~70–130 words on WHY the scene works as a whole — the governing idea, the craft decision that everything serves, the transferable principle. Precise and earned: name the mechanism. No vague praise ("iconic", "masterful") without the why beneath it.
+      Keep diagrams SCHEMATIC and honest to the real staging — blocking sketches, not frames.
+- «sound»: what the SOUND is doing — score, diegetic sound, silence, the mix, where sound leads or contradicts the image. 2–4 sentences. Always include this; sound is half the scene.
+- «performance»: the acting turn that matters — the specific beat in a face, a body, a voice that carries the scene. 1–3 sentences.
+- «pourquoi»: the heart. ~70–120 words on WHY the scene works as a whole — the governing idea, the craft decision everything serves, the transferable principle. Precise and earned: name the mechanism. No vague praise ("iconic", "masterful") without the why beneath it.
 - «geste»: the ONE transferable move, as a short pinnable phrase a maker could put above the editing bay (≤ 12 words).
 - «goFurther»: 2–3 threads — other REAL scenes/films that rhyme with this one, each with a one-line «note» on the connection. Real films only.
 
@@ -99,22 +105,13 @@ VOICE: a brilliant editor or DP showing you the cut on a flatbed — warm, exact
 Respond ONLY by calling report_seance with accurate, real content.`;
 
 const LANG_DIRECTIVE: Record<Lang, string> = {
-  fr: "\n\nLANGUE DE SORTIE — écris TOUT le texte destiné à l'utilisateur en FRANÇAIS QUÉBÉCOIS naturel et soigné, dans CHAQUE champ bilingue, côté `fr` ET côté `en` (le `en` en anglais soigné). Les noms propres — titres de films, noms de cinéastes — gardent leur forme consacrée dans les deux langues. Si tu cites une réplique, cite-la dans SA langue d'origine exacte (ne traduis jamais une réplique), puis commente. Utilise le vocabulaire du métier en français : plan, champ/contrechamp, raccord, plan-séquence, travelling, plongée/contre-plongée, amorce, hors-champ.",
-  en: "\n\nOUTPUT LANGUAGE — fill BOTH sides of every bilingual field: write the `fr` side in natural, cultured Québécois French and the `en` side in natural, cultured English. Keep proper names (film titles, directors) in their consecrated form in both. If you quote a line of dialogue, quote it in ITS exact original language (never translate a quotation), then comment.",
+  fr: "\n\nLANGUE DE SORTIE — écris TOUT le texte destiné à l'utilisateur en FRANÇAIS QUÉBÉCOIS naturel et soigné. Les noms propres — titres de films, noms de cinéastes — gardent leur forme consacrée. Si tu cites une réplique, cite-la dans SA langue d'origine exacte (ne traduis jamais une réplique), puis commente. Utilise le vocabulaire du métier : plan, champ/contrechamp, raccord, plan-séquence, travelling, plongée/contre-plongée, amorce, hors-champ.",
+  en: "\n\nOUTPUT LANGUAGE — write ALL user-facing prose in natural, cultured ENGLISH. Keep proper names (film titles, directors) in their consecrated form. If you quote a line of dialogue, quote it in ITS exact original language (never translate a quotation), then comment.",
 };
 
 function systemFor(lang: Lang): string {
   return SYSTEM_BASE + LANG_DIRECTIVE[lang];
 }
-
-const BILINGUAL = {
-  type: "object" as const,
-  required: ["fr", "en"],
-  properties: {
-    fr: { type: "string" as const, description: "Québécois French text." },
-    en: { type: "string" as const, description: "English text." },
-  },
-};
 
 const DIAGRAM_SCHEMA = {
   type: "object" as const,
@@ -191,19 +188,18 @@ const TOOL: Anthropic.Tool = {
       film: { type: "string", description: "The real film's consecrated title. Never invented." },
       director: { type: "string", description: "The real director, exactly." },
       year: { type: "number", description: "Real release year." },
-      scene: { ...BILINGUAL, description: "The specific scene, named precisely (both languages)." },
+      scene: { type: "string", description: "The specific scene, named precisely." },
       whereToWatch: {
-        ...BILINGUAL,
-        description:
-          "Honest where-to-watch / approximate timecode hint (both languages). Approximations only.",
+        type: "string",
+        description: "Honest where-to-watch / approximate timecode hint. Approximations only.",
       },
       mediaQuery: {
         type: "string",
         description:
           "KEYWORDS ONLY (never a URL): the film title + director, e.g. 'Goodfellas Martin Scorsese 1990'. The app resolves a real Wikipedia link from these.",
       },
-      logline: { ...BILINGUAL, description: "One evocative framing line, ≤ 18 words." },
-      setup: { ...BILINGUAL, description: "The setup — 2–3 sentences." },
+      logline: { type: "string", description: "One evocative framing line, ≤ 18 words." },
+      setup: { type: "string", description: "The setup — 2–3 sentences." },
       beats: {
         type: "array",
         description: "The shot-by-shot spine: 4–7 ordered beats.",
@@ -215,16 +211,16 @@ const TOOL: Anthropic.Tool = {
               type: "string",
               description: "Short honest relative marker, e.g. '0:00–0:10', '@1:32'. Approximate.",
             },
-            shot: { ...BILINGUAL, description: "What we SEE — framing, blocking, lens, camera move." },
-            read: { ...BILINGUAL, description: "Why this beat works — the decision and its effect." },
+            shot: { type: "string", description: "What we SEE — framing, blocking, lens, camera move." },
+            read: { type: "string", description: "Why this beat works — the decision and its effect." },
             diagram: DIAGRAM_SCHEMA,
           },
         },
       },
-      sound: { ...BILINGUAL, description: "What the sound is doing — 2–4 sentences." },
-      performance: { ...BILINGUAL, description: "The performance turn — 1–3 sentences." },
-      pourquoi: { ...BILINGUAL, description: "Why it works as a whole — ~70–130 words. The signature." },
-      geste: { ...BILINGUAL, description: "The single transferable move — one pinnable phrase, ≤ 12 words." },
+      sound: { type: "string", description: "What the sound is doing — 2–4 sentences." },
+      performance: { type: "string", description: "The performance turn — 1–3 sentences." },
+      pourquoi: { type: "string", description: "Why it works as a whole — ~70–120 words. The signature." },
+      geste: { type: "string", description: "The single transferable move — one pinnable phrase, ≤ 12 words." },
       goFurther: {
         type: "array",
         description: "2–3 threads to real related scenes/films.",
@@ -233,7 +229,7 @@ const TOOL: Anthropic.Tool = {
           required: ["film", "note"],
           properties: {
             film: { type: "string", description: "A real film/scene title to explore." },
-            note: { ...BILINGUAL, description: "One-line note on the connection." },
+            note: { type: "string", description: "One-line note on the connection." },
           },
         },
       },
@@ -243,11 +239,6 @@ const TOOL: Anthropic.Tool = {
 
 function clamp(s: unknown, max: number): string {
   return String(s ?? "").trim().slice(0, max);
-}
-
-function bil(raw: unknown, max: number): Bilingual {
-  const o = (raw ?? {}) as Partial<Bilingual>;
-  return { fr: clamp(o.fr, max), en: clamp(o.en, max) };
 }
 
 function num01(v: unknown, fallback = 0): number {
@@ -334,17 +325,16 @@ export async function deconstruct(req: SeanceRequest): Promise<Deconstruction> {
       ? `ALREADY COVERED — do NOT pick any of these for goFurther threads, and ensure the main scene is genuinely distinct:\n${avoid.map((a) => `• ${a}`).join("\n")}`
       : "",
     "",
-    "Deconstruct it shot by shot, honestly and specifically. Fill BOTH languages in every bilingual field. Provide diagrams on the 2–4 most important beats. Respond only by calling report_seance.",
+    `Deconstruct it shot by shot, honestly and specifically, in ${lang === "fr" ? "FRENCH (Québécois)" : "ENGLISH"}. Provide diagrams on the 2–4 most important beats. Respond only by calling report_seance.`,
   ]
     .filter(Boolean)
     .join("\n");
 
   const res = await client().messages.create({
     model: MODEL,
-    // The output is bilingual (every field doubled) with 4–7 richly-described
-    // beats plus diagrams — that's a large structured tool call. Give it room
-    // so the JSON is never truncated mid-object.
-    max_tokens: 9000,
+    // Monolingual output keeps a rich 4–7-beat deconstruction comfortably
+    // within the function window; this ceiling is generous, not a target.
+    max_tokens: 5000,
     system: systemFor(lang),
     messages: [{ role: "user", content: userText }],
     tools: [TOOL],
@@ -353,8 +343,6 @@ export async function deconstruct(req: SeanceRequest): Promise<Deconstruction> {
 
   const tool = res.content.find((b) => b.type === "tool_use");
   if (!tool || tool.type !== "tool_use") {
-    // A truncated tool call (stop_reason "max_tokens") yields no complete
-    // tool_use block — surface a retryable, honest message.
     throw new Error(
       lang === "en"
         ? "The analyst returned nothing. Please try again."
@@ -364,10 +352,7 @@ export async function deconstruct(req: SeanceRequest): Promise<Deconstruction> {
   const raw = tool.input as Record<string, unknown>;
 
   const film = clamp(raw.film, 200);
-  const director = clamp(raw.director, 200);
-  const year = Number(raw.year) || 0;
-  const scene = bil(raw.scene, 400);
-  const whereToWatch = bil(raw.whereToWatch, 400);
+  const scene = clamp(raw.scene, 400);
   let mediaQuery = clamp(raw.mediaQuery, 160);
   if (/https?:\/\/|www\.|\.\w{2,}\//i.test(mediaQuery)) mediaQuery = "";
 
@@ -376,8 +361,8 @@ export async function deconstruct(req: SeanceRequest): Promise<Deconstruction> {
     const o = (b ?? {}) as Record<string, unknown>;
     return {
       timecode: clamp(o.timecode, 40),
-      shot: bil(o.shot, 700),
-      read: bil(o.read, 700),
+      shot: clamp(o.shot, 700),
+      read: clamp(o.read, 700),
       diagram: sanitizeDiagram(o.diagram),
     };
   });
@@ -385,10 +370,10 @@ export async function deconstruct(req: SeanceRequest): Promise<Deconstruction> {
   const goRaw = Array.isArray(raw.goFurther) ? raw.goFurther : [];
   const goFurther: Thread[] = goRaw.slice(0, 4).map((g) => {
     const o = (g ?? {}) as Record<string, unknown>;
-    return { film: clamp(o.film, 200), note: bil(o.note, 400) };
+    return { film: clamp(o.film, 200), note: clamp(o.note, 400) };
   });
 
-  if (!film || !scene.fr || !scene.en || beats.length === 0) {
+  if (!film || !scene || beats.length === 0) {
     throw new Error(
       lang === "en"
         ? "The deconstruction came back incomplete. Please try again."
@@ -397,19 +382,20 @@ export async function deconstruct(req: SeanceRequest): Promise<Deconstruction> {
   }
 
   return {
+    lang,
     film,
-    director,
-    year,
+    director: clamp(raw.director, 200),
+    year: Number(raw.year) || 0,
     scene,
-    whereToWatch,
+    whereToWatch: clamp(raw.whereToWatch, 400),
     ...(mediaQuery ? { mediaQuery } : {}),
-    logline: bil(raw.logline, 220),
-    setup: bil(raw.setup, 1200),
+    logline: clamp(raw.logline, 220),
+    setup: clamp(raw.setup, 1200),
     beats,
-    sound: bil(raw.sound, 1400),
-    performance: bil(raw.performance, 1200),
-    pourquoi: bil(raw.pourquoi, 1800),
-    geste: bil(raw.geste, 220),
+    sound: clamp(raw.sound, 1400),
+    performance: clamp(raw.performance, 1200),
+    pourquoi: clamp(raw.pourquoi, 1800),
+    geste: clamp(raw.geste, 220),
     goFurther,
   };
 }

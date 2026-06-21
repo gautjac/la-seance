@@ -35,6 +35,6 @@ export async function fetchSeance(req: SeanceRequest): Promise<Deconstruction> {
   if (!parsed) throw new Error("Réponse invalide du serveur.");
   if ("error" in parsed && parsed.error) throw new Error(parsed.error);
   if ("result" in parsed && parsed.result) return parsed.result;
-  if ("beats" in parsed && "film" in parsed) return parsed as Deconstruction;
+  if ("beats" in parsed && "film" in parsed) return parsed as unknown as Deconstruction;
   throw new Error("Réponse invalide du serveur.");
 }

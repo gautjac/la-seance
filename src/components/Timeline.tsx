@@ -1,5 +1,6 @@
 import type { Lang, SeanceLog } from "../types";
-import { pick, t } from "../lib/i18n";
+import { t } from "../lib/i18n";
+import { deconFor, anyDecon } from "../db";
 
 type EmptyKey = "emptyFil" | "emptyCinematheque";
 
@@ -29,14 +30,15 @@ export default function Timeline({
   return (
     <ul className="space-y-3">
       {logs.map((log) => {
-        const d = log.decon;
-        const dayLabel =
-          log.date.startsWith("ask-")
-            ? t("onDemand", lang)
-            : new Date(log.date + "T00:00:00").toLocaleDateString(
-                lang === "fr" ? "fr-CA" : "en-CA",
-                { day: "numeric", month: "short", year: "numeric" },
-              );
+        // prefer the active language, fall back to whatever we have cached
+        const d = deconFor(log, lang) ?? anyDecon(log);
+        if (!d) return null;
+        const dayLabel = log.date.startsWith("ask-")
+          ? t("onDemand", lang)
+          : new Date(log.date + "T00:00:00").toLocaleDateString(
+              lang === "fr" ? "fr-CA" : "en-CA",
+              { day: "numeric", month: "short", year: "numeric" },
+            );
         return (
           <li
             key={log.id ?? log.date}
@@ -67,13 +69,11 @@ export default function Timeline({
               </div>
               <h3 className="mt-1.5 font-display text-[1.3rem] font-bold leading-tight text-ink">
                 {d.film}
-                <span className="ml-2 font-text text-[0.95rem] font-normal text-ink/45">
+                <span className="ml-2 font-text text-[0.95rem] font-normal text-ink/45 tnum">
                   {d.year || ""}
                 </span>
               </h3>
-              <p className="mt-0.5 font-text text-[1rem] italic text-rouge/85">
-                « {pick(d.scene, lang)} »
-              </p>
+              <p className="mt-0.5 font-text text-[1rem] italic text-rouge/85">« {d.scene} »</p>
               <p className="mt-1 font-text text-[0.88rem] text-ink/50">
                 {t("by", lang)} {d.director}
               </p>
