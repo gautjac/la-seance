@@ -1,0 +1,110 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: #ede4d2;
+  /* Newsprint découpage sheet: a faint rouge/laiton wash from the corners + fine
+     paper grain, so the page reads like an ink-printed shot list, never a flat
+     web surface. */
+  background-image:
+    radial-gradient(80% 50% at 100% 0%, rgba(181, 32, 43, 0.06), transparent 60%),
+    radial-gradient(75% 55% at 0% 100%, rgba(166, 121, 46, 0.07), transparent 60%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E");
+  background-attachment: fixed;
+  color: #15110e;
+  font-family: "Spectral", Georgia, serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* hairline rules, like pencil ruling on a découpage sheet */
+.rule {
+  border: none;
+  height: 0;
+  border-top: 1px solid rgba(21, 17, 14, 0.16);
+}
+.rule-ink {
+  border-top: 1.5px solid rgba(21, 17, 14, 0.85);
+}
+
+/* mono label, slate-board caption style */
+.label {
+  font-family: "Space Mono", ui-monospace, monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  font-size: 0.66rem;
+}
+
+/* sprocket strip — a vertical film perforation rail */
+.sprockets {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 8px,
+    rgba(21, 17, 14, 0.55) 8px,
+    rgba(21, 17, 14, 0.55) 14px,
+    transparent 14px,
+    transparent 22px
+  );
+}
+
+/* a drop cap for the "pourquoi" lede, set in the display face */
+.lede::first-letter {
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 900;
+  font-size: 3.2em;
+  line-height: 0.78;
+  float: left;
+  margin: 0.05em 0.09em 0 0;
+  color: #b5202b;
+}
+
+/* chalk on slate — for the geste card */
+.slate {
+  background-color: #1b1714;
+  background-image:
+    radial-gradient(120% 80% at 30% 0%, rgba(255, 255, 255, 0.05), transparent 70%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='c'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='2'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23c)' opacity='0.06'/%3E%3C/svg%3E");
+}
+
+::selection {
+  background: rgba(181, 32, 43, 0.22);
+}
+
+input,
+textarea,
+button,
+select {
+  font-family: inherit;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(21, 17, 14, 0.25) transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
