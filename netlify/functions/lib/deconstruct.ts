@@ -105,12 +105,18 @@ VOICE: a brilliant editor or DP showing you the cut on a flatbed — warm, exact
 Respond ONLY by calling report_seance with accurate, real content.`;
 
 const LANG_DIRECTIVE: Record<Lang, string> = {
-  fr: "\n\nLANGUE DE SORTIE — écris TOUT le texte destiné à l'utilisateur en FRANÇAIS QUÉBÉCOIS naturel et soigné. Les noms propres — titres de films, noms de cinéastes — gardent leur forme consacrée. Si tu cites une réplique, cite-la dans SA langue d'origine exacte (ne traduis jamais une réplique), puis commente. Utilise le vocabulaire du métier : plan, champ/contrechamp, raccord, plan-séquence, travelling, plongée/contre-plongée, amorce, hors-champ.",
-  en: "\n\nOUTPUT LANGUAGE — write ALL user-facing prose in natural, cultured ENGLISH. Keep proper names (film titles, directors) in their consecrated form. If you quote a line of dialogue, quote it in ITS exact original language (never translate a quotation), then comment.",
+  fr: "LANGUE DE SORTIE — écris TOUT le texte destiné à l'utilisateur en FRANÇAIS QUÉBÉCOIS naturel et soigné. Les noms propres — titres de films, noms de cinéastes — gardent leur forme consacrée. Si tu cites une réplique, cite-la dans SA langue d'origine exacte (ne traduis jamais une réplique), puis commente. Utilise le vocabulaire du métier : plan, champ/contrechamp, raccord, plan-séquence, travelling, plongée/contre-plongée, amorce, hors-champ.",
+  en: "OUTPUT LANGUAGE — write ALL user-facing prose in natural, cultured ENGLISH. Keep proper names (film titles, directors) in their consecrated form. If you quote a line of dialogue, quote it in ITS exact original language (never translate a quotation), then comment.",
 };
 
-function systemFor(lang: Lang): string {
-  return SYSTEM_BASE + LANG_DIRECTIVE[lang];
+// Two blocks: the breakpoint sits on the shared base, so tools + base form one
+// cached prefix that both languages read — a language switch, an 'ask' or a
+// 'give me another' within 5 min pays ~10% for it. The directive follows.
+function systemFor(lang: Lang): Anthropic.TextBlockParam[] {
+  return [
+    { type: "text", text: SYSTEM_BASE, cache_control: { type: "ephemeral" } },
+    { type: "text", text: LANG_DIRECTIVE[lang] },
+  ];
 }
 
 const DIAGRAM_SCHEMA = {
@@ -340,6 +346,10 @@ export async function deconstruct(req: SeanceRequest): Promise<Deconstruction> {
     tools: [TOOL],
     tool_choice: { type: "tool", name: "report_seance" },
   });
+  const u = res.usage;
+  console.log(
+    `[seance] ${lang}: input=${u.input_tokens} cache_read=${u.cache_read_input_tokens ?? 0} cache_write=${u.cache_creation_input_tokens ?? 0} output=${u.output_tokens}`,
+  );
 
   const tool = res.content.find((b) => b.type === "tool_use");
   if (!tool || tool.type !== "tool_use") {
